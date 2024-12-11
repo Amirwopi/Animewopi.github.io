@@ -11,7 +11,15 @@ const AvailableServers = ["https://api.amirwopi.workers.dev"];
 function getApiServer() {
     return AvailableServers[Math.floor(Math.random() * AvailableServers.length)];
 }
+function decodeHtml(encodedStr) {
+    const txt = document.createElement("textarea");
+    txt.innerHTML = encodedStr;
+    return txt.value;
+}
 
+function removeHtmlTags(str) {
+    return str.replace(/<[^>]*>/g, ''); // حذف تمام تگ‌های HTML
+}
 // Usefull functions
 
 async function getJson(path, errCount = 0) {
@@ -92,30 +100,32 @@ function getAnilistOtherTitle(title, current) {
 
 // Function to get anime info from gogo id
 async function loadAnimeFromGogo(data) {
-    const translatedSynopsis = await translateText(data["plot_summary"], "fa");
+    const apiUrl = `https://api-wopi.amirwopi.workers.dev/anime/${AnimeID}`;
+    const response = await fetch(apiUrl);
+    const apiData = await response.json();
+    const description = apiData.full_description;
+    const cleanStr = removeHtmlTags(decodeHtml(description));
 
     document.documentElement.innerHTML = document.documentElement.innerHTML
-        .replaceAll("TITLE", data["name"])
-        .replaceAll("IMG", data["image"])
-        .replaceAll("LANG", "EP " + data["episodes"].length)
-        .replaceAll("TYPE", data["type"])
+        .replaceAll("TITLE", data.name)
+        .replaceAll("IMG", data.image)
+        .replaceAll("LANG", `EP ${data.episodes.length}`)
+        .replaceAll("TYPE", data.type)
         .replaceAll("URL", window.location)
-        .replaceAll("SYNOPSIS", translatedSynopsis) // استفاده از توضیحات ترجمه‌شده
-        .replaceAll("OTHER", data["other_name"])
-        .replaceAll("TOTAL", data["episodes"].length)
-        .replaceAll("YEAR", data["released"])
-        .replaceAll("STATUS", data["status"])
-        .replaceAll("GENERES", getGenreHtml(data["genre"].split(",")));
+        .replaceAll("SYNOPSIS", cleanStr)
+        .replaceAll("OTHER", data.other_name)
+        .replaceAll("TOTAL", data.episodes.length)
+        .replaceAll("YEAR", data.released)
+        .replaceAll("STATUS", apiData["status"])
+        .replaceAll("GENERES", getGenreHtml(data.genre.split(",")));
 
     document.getElementById("main-content").style.display = "block";
     document.getElementById("load").style.display = "none";
-    setTimeout(() => {
-        document.getElementById("poster-img").style.display = "block";
-    }, 100);
+    setTimeout(() => document.getElementById("poster-img").style.display = "block", 100);
 
-    const episodes = data["episodes"];
+    const episodes = data.episodes;
 
-    if (episodes.length == 0) {
+    if (episodes.length === 0) {
         const ephtml = '<a id="no-ep-found" class="ep-btn">No Episodes Found</a>';
         document.getElementById("ep-lower-div").innerHTML = ephtml;
         document.getElementById("ep-divo-outer").style.display = "block";
@@ -123,19 +133,13 @@ async function loadAnimeFromGogo(data) {
         document.getElementById('ep-lower-div').style.gridTemplateColumns = "unset";
         document.getElementById('no-ep-found').style.width = "100%";
     } else {
-        document.getElementById("watch-btn").href =
-            "./episode.html?anime_id=" +
-            AnimeID +
-            "&episode_id=" +
-            data["episodes"][0][1];
-
+        document.getElementById("watch-btn").href = `./episode.html?anime_id=${AnimeID}&episode_id=${episodes[0][1]}`;
         console.log("Anime Info loaded");
         RefreshLazyLoader();
-
-        getEpSlider(data["episodes"]);
-        getEpList(data["episodes"]);
+        getEpSlider(episodes);
+        getEpList(episodes);
     }
-    getRecommendations(data["name"]);
+    getRecommendations(data.name);
 }
 
 async function translateText(text, targetLanguage = "fa") {
@@ -152,19 +156,23 @@ async function translateText(text, targetLanguage = "fa") {
 
 // Function to get anime info from anilist search
 async function loadAnimeFromAnilist(data) {
-    const translatedSynopsis = await translateText(data["description"], "fa");
 
+    const apiUrl = `https://api-wopi.amirwopi.workers.dev/anime/${AnimeID}`;
+    const response = await fetch(apiUrl);
+    const apiData = await response.json();
+    const description = apiData.full_description;
+    const cleanStr = removeHtmlTags(decodeHtml(description));
     document.documentElement.innerHTML = document.documentElement.innerHTML
         .replaceAll("TITLE", getAnilistTitle(data["title"]))
         .replaceAll("IMG", data["coverImage"]["large"])
         .replaceAll("LANG", "EP " + data["episodes"])
         .replaceAll("TYPE", data["format"])
         .replaceAll("URL", window.location)
-        .replaceAll("SYNOPSIS", translatedSynopsis) // استفاده از توضیحات ترجمه‌شده
+        .replaceAll("SYNOPSIS", cleanStr)
         .replaceAll("OTHER", getAnilistOtherTitle(data["title"], getAnilistTitle(data["title"])))
         .replaceAll("TOTAL", "EP " + data["episodes"])
         .replaceAll("YEAR", data["seasonYear"])
-        .replaceAll("STATUS", data["status"])
+        .replaceAll("STATUS", apiData["status"])
         .replaceAll("GENERES", getGenreHtml(data["genres"]));
 
     document.getElementById("main-content").style.display = "block";
@@ -245,7 +253,7 @@ async function getEpList(total) {
             } else {
                 epUpperBtnText = `${epnum} - ${epnum + 99}`;
                 html += `<option class="ep-btn" data-from=${epnum} data-to=${epnum + 99
-                    }>${epUpperBtnText}</option>`;
+                }>${epUpperBtnText}</option>`;
 
                 if (!loadedFirst) {
                     // load first episode list
